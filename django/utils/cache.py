@@ -178,7 +178,18 @@ def _generate_cache_key(request, method, headerlist, key_prefix):
     ctx = hashlib.md5()
     for header in headerlist:
         value = request.META.get(header, None)
-        if value is not None:
+        # Ignore cookies set in CACHE_MIDDLE_WARE_IGNORE_COOKIES
+	# This is a workaround for caching when clien-side JS
+	# sets cookies.
+	# Note that it helps only caching using Django's internal 
+	# cache and not upstream caches.
+        if header == "HTTP_COOKIE" and len(request.COOKIES) > 0:
+            cookies = request.COOKIES
+            for label in [key for key in cookies.keys() if key in settings.CACHE_MIDDLEWARE_IGNORE_COOKIES]:
+                del cookies[label]
+            if len(cookies) > 0:
+                ctx.update(";".join(['%s=%s' % (k, v) for k, v in cookies.items()]))
+        elif value is not None:
             ctx.update(value)
     path = hashlib.md5(iri_to_uri(request.get_full_path()))
     cache_key = 'views.decorators.cache.cache_page.%s.%s.%s.%s' % (
